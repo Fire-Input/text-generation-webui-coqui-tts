@@ -11,7 +11,7 @@ params = {
     'speaker': 'p227',
     'language': 'en',
     'model_name': 'tts_models/en/vctk/vits',
-    'device': 'cuda',
+    'gpu': False,
     'show_text': True,
     'autoplay': True,
     'server': False,
@@ -91,11 +91,14 @@ def output_modifier(string):
 
     output_file = Path(f'extensions/coqui_tts/outputs/{wav_idx:06d}.wav')
     print(f'Outputting audio to {str(output_file)}')
-    tts = TTS(params['model_name'])
-    tts.tts_to_file(text=string, file_path=str(output_file), speaker=params['speaker'])
-    autoplay = 'autoplay' if params['autoplay'] else ''
-    string = f'<audio src="file/{output_file.as_posix()}" controls {autoplay}></audio>'
-    wav_idx += 1
+    try:
+        tts = TTS(model_name=params['model_name'], progress_bar=False, gpu=params['gpu'])
+        tts.tts_to_file(text=string, file_path=str(output_file), speaker=params['speaker'])
+        autoplay = 'autoplay' if params['autoplay'] else ''
+        string = f'<audio src="file/{output_file.as_posix()}" controls {autoplay}></audio>'
+        wav_idx += 1
+    except FileNotFoundError as err:
+        string = f"🤖 Coqui TTS Error: {err}\n\n"
 
     # except elevenlabs.api.error.UnauthenticatedRateLimitError:
     #     string = "🤖 ElevenLabs Unauthenticated Rate Limit Reached - Please create an API key to continue\n\n"
