@@ -89,7 +89,7 @@ def output_modifier(string):
     if string == '':
         string = 'empty reply, try regenerating'
 
-    output_file = Path(f'extensions/coqui_tts/outputs/{wav_idx:06d}.mp3')
+    output_file = Path(f'extensions/coqui_tts/outputs/{wav_idx:06d}.wav')
     print(f'Outputting audio to {str(output_file)}')
     tts = TTS(params['model_name'])
     tts.tts_to_file(text=string, file_path=str(output_file), speaker=params['speaker'])
