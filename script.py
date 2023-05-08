@@ -1,5 +1,4 @@
 from TTS.api import TTS
-import TTS
 import re
 from pathlib import Path
 import gradio as gr
@@ -158,11 +157,3 @@ def ui():
     show_text.change(chat.save_history, shared.gradio['mode'], [], show_progress=False)
     # Event functions to update the parameters in the backend
     autoplay.change(lambda x: params.update({"autoplay": x}), autoplay, None)
-
-
-# Run TTS
-# ❗ Since this model is multi-speaker, we must set the target speaker
-# Text to speech with a numpy output
-# wav = tts.tts("This is a test! This is also a test!!", speaker=tts.speakers[3])
-# Text to speech to a file
-# tts.tts_to_file(text="Oobabooga Extension.", speaker=params['speaker'], file_path="./output/output.wav")
