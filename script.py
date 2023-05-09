@@ -4,7 +4,8 @@ import gradio as gr
 import time
 import traceback
 
-from modules import chat, shared, tts_preprocessor
+from modules import chat, shared
+from extensions.coqui_tts import tts_preprocessor
 from modules.html_generator import chat_html_wrapper
 
 
