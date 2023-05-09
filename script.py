@@ -116,10 +116,11 @@ def output_modifier(string):
         tts = TTS(model_name=params['model_name'], progress_bar=False, gpu=params['gpu'])
         if not tts.is_multi_speaker:
             params['selected_speaker'] = None
-        if tts.is_multi_lingual:
-            tts.tts_to_file(text=string, file_path=str(output_file), speaker=params['selected_speaker'], language=params['language'])
+        if not tts.is_multi_lingual:
+            params['language'] = None
         else:
-            tts.tts_to_file(text=string, file_path=str(output_file), speaker=params['selected_speaker'])
+            params['language'] = "en"
+        tts.tts_to_file(text=string, file_path=str(output_file), speaker=params['selected_speaker'], language=params['language'])
         autoplay = 'autoplay' if params['autoplay'] else ''
         string = f'<audio src="file/{output_file.as_posix()}" controls {autoplay}></audio>'
         wav_idx += 1
@@ -146,6 +147,7 @@ def ui():
         activate = gr.Checkbox(value=params['activate'], label='Activate TTS')
         autoplay = gr.Checkbox(value=params['autoplay'], label='Play TTS automatically')
         show_text = gr.Checkbox(value=params['show_text'], label='Show message text under audio player')
+        gpu = gr.Checkbox(value=params['gpu'], label='Use GPU')
 
     with gr.Row():
         model = gr.Dropdown(value=params['model_name'], choices=available_models, label='TTS Model')
@@ -191,3 +193,4 @@ def ui():
     show_text.change(chat.save_history, shared.gradio['mode'], [], show_progress=False)
     # Event functions to update the parameters in the backend
     autoplay.change(lambda x: params.update({"autoplay": x}), autoplay, None)
+    gpu.change(lambda x: params.update({"gpu": x}), gpu, None)
