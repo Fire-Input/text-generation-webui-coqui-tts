@@ -18,12 +18,12 @@ pip install -r extensions/coqui_tts/requirements.txt
 
 ## Notes
 - The `coqui_tts` extension will automatically download the pretrained model `tts_models/en/vctk/vits` by default. It is less than 200MB in size, and will be downloaded to `\home\USER\.local\share\tts` for Linux and `C:\Users\USER\AppData\Local\tts` for Windows.
-- Currently, the `coqui_tts` extension only supports English.
 - You may get an error about numpy if you are using python < 3.10, try `pip install numpy==1.21.6` and restart the WebUI.
 - Custom models are not supported yet.
 - Everytime you generate a new audio, Coqui will print out a log message to the console. This is normal and unfortunately cannot be disabled.
 - Audio files are saved to `text-generation-webui/extensions/coqui_tts/outputs/`
 - A lot of the code is copied from the [ElevenLabs extension](https://github.com/oobabooga/text-generation-webui/tree/main/extensions/elevenlabs_tts).
+- And some code copied from [da3dsoul's fork](https://github.com/da3dsoul/text-generation-webui/tree/main/extensions/coqui_tts).
 - I do not have a Coqui Studio API key, so I cannot test it. Therefore, it is not supported yet.
 
 ## Testing Environment
