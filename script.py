@@ -9,16 +9,18 @@ from modules.html_generator import chat_html_wrapper
 params = {
     'activate': True,
     'speaker': 'p227',
-    'language': 'en',
     'model_name': 'tts_models/en/vctk/vits',
     'gpu': False,
     'show_text': True,
     'autoplay': True,
-    'server': False,
 }
 
 wav_idx = 0
+
+# For tts_models/en/vctk/vits only.
 voices_by_gender = ["p225", "p227", "p237", "p240", "p243", "p244", "p245", "p246", "p247", "p248", "p249", "p250", "p259", "p260", "p261", "p263", "p268", "p270", "p271", "p273", "p274", "p275", "p276", "p277", "p278", "p280", "p283", "p284", "p288", "p293", "p294", "p295", "p297", "p300", "p303", "p304", "p305", "p306", "p308", "p310", "p311", "p314", "p316", "p323", "p329", "p334", "p335", "p336", "p339", "p341", "p343", "p345", "p347", "p360", "p361", "p363", "p364"]
+
+available_models = TTS.list_models()
 
 
 def remove_tts_from_history(name1, name2, mode, style):
@@ -123,7 +125,8 @@ def ui():
         show_text = gr.Checkbox(value=params['show_text'], label='Show message text under audio player')
 
     with gr.Row():
-        voice = gr.Dropdown(value=params['speaker'], choices=voices_by_gender, label='TTS Voice')
+        model = gr.Dropdown(value=params['model_name'], choices=available_models, label='TTS Model')
+        voice = gr.Dropdown(value=params['speaker'], choices=voices_by_gender, label='TTS Speaker')
 
     with gr.Row():
         convert = gr.Button('Permanently replace audios with the message texts')
@@ -151,6 +154,7 @@ def ui():
 
     # Event functions to update the parameters in the backend
     activate.change(lambda x: params.update({'activate': x}), activate, None)
+    model.change(lambda x: params.update({'model_name': x}), model, None)
     voice.change(lambda x: params.update({'speaker': x}), voice, None)
     # Toggle message text in history
     show_text.change(lambda x: params.update({"show_text": x}), show_text, None)
