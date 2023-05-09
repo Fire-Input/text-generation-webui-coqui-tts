@@ -1,45 +1,54 @@
 from TTS.api import TTS
-import re
 from pathlib import Path
 import gradio as gr
+import time
+import traceback
 
-from modules import chat, shared
+from modules import chat, shared, tts_preprocessor
 from modules.html_generator import chat_html_wrapper
+
 
 params = {
     'activate': True,
-    'selected_speaker': 'None',
-    'language': 'en',
+    'selected_speaker': None,
+    'language': None,
     'model_name': 'tts_models/en/vctk/vits',
     'gpu': False,
     'show_text': True,
     'autoplay': True,
+    'voice_clone_reference_path': None,
+    'show_processed_text': False,
 }
 
-speakers = None
-wav_idx = 0
+current_params = params.copy()
+speakers = []
+languages = []
 
 # For tts_models/en/vctk/vits only.
 # voices_by_gender = ["p225", "p227", "p237", "p240", "p243", "p244", "p245", "p246", "p247", "p248", "p249", "p250", "p259", "p260", "p261", "p263", "p268", "p270", "p271", "p273", "p274", "p275", "p276", "p277", "p278", "p280", "p283", "p284", "p288", "p293", "p294", "p295", "p297", "p300", "p303", "p304", "p305", "p306", "p308", "p310", "p311", "p314", "p316", "p323", "p329", "p334", "p335", "p336", "p339", "p341", "p343", "p345", "p347", "p360", "p361", "p363", "p364"]
 
-available_models = TTS.list_models()
+models = TTS.list_models()
 
 
-def refresh_speakers():
-    global params
-    speaker_names = TTS(params['model_name'], progress_bar=False).speakers
-    if speaker_names is not None:
-        return speaker_names
-    else:
-        return None
+def load_model():
+    # Init TTS
+    global speakers, params
+    tts = TTS(params['model_name'], gpu=params['gpu'])
+    if tts is not None and tts.synthesizer is not None and tts.synthesizer.tts_config is not None and hasattr(
+            tts.synthesizer.tts_config, 'num_chars'):
+        tts.synthesizer.tts_config.num_chars = 250
+
+    speakers = tts.speakers if tts.speakers is not None else []
+    temp_speaker = params['selected_speaker'] if params['selected_speaker'] in speakers else speakers[0] if len(speakers) > 0 else None
+
+    languages = tts.languages if tts.languages is not None else []
+    temp_language = params['language'] if params['language'] in languages else languages[0] if len(
+        languages) > 0 else None
+
+    return tts, temp_speaker, temp_language
 
 
-def refresh_speakers_dd():
-    all_voices = refresh_speakers()
-    if all_voices is not None:
-        return gr.Dropdown.update(value=all_voices[0], choices=all_voices)
-    else:
-        return gr.Dropdown.update(value='None', choices=['None'])
+model, speaker, language = load_model()
 
 
 def remove_tts_from_history(name1, name2, mode, style):
@@ -67,12 +76,6 @@ def state_modifier(state):
     return state
 
 
-def remove_surrounded_chars(string):
-    # this expression matches to 'as few symbols as possible (0 upwards) between any asterisks' OR
-    # 'as few symbols as possible (0 upwards) between an asterisk and the end of the string'
-    return re.sub('\*[^\*]*?(\*|$)', '', string)
-
-
 def input_modifier(string):
     """
     This function is applied to your text inputs before
@@ -96,70 +99,84 @@ def output_modifier(string):
     This function is applied to the model outputs.
     """
 
-    global params, wav_idx
+    global model, speaker, language, current_params
 
-    if not params['activate']:
+    for i in params:
+        if params[i] != current_params[i]:
+            model, speaker, language = load_model()
+            current_params = params.copy()
+            break
+
+    if not current_params['activate']:
         return string
 
     original_string = string
-    string = remove_surrounded_chars(string)
-    string = string.replace('"', '')
-    string = string.replace('“', '')
-    string = string.replace('\n', ' ')
-    string = string.strip()
+    # we don't need to handle numbers. The text normalizer in coqui does it better
+    string = tts_preprocessor.replace_invalid_chars(string)
+    # string = tts_preprocessor.replace_abbreviations(string)
+    string = tts_preprocessor.clean_whitespace(string)
+    processed_string = string
     if string == '':
         string = 'empty reply, try regenerating'
+    else:
+        output_file = Path(f'extensions/coqui_tts/outputs/{shared.character}_{int(time.time())}.wav')
+        print(f'Outputting audio to {str(output_file)}')
 
-    output_file = Path(f'extensions/coqui_tts/outputs/{wav_idx:06d}.wav')
-    print(f'Outputting audio to {str(output_file)}')
-    try:
-        tts = TTS(model_name=params['model_name'], progress_bar=False, gpu=params['gpu'])
-        if not tts.is_multi_speaker:
-            params['selected_speaker'] = None
-        if not tts.is_multi_lingual:
-            params['language'] = None
-        else:
-            params['language'] = "en"
-        tts.tts_to_file(text=string, file_path=str(output_file), speaker=params['selected_speaker'], language=params['language'])
-        autoplay = 'autoplay' if params['autoplay'] else ''
-        string = f'<audio src="file/{output_file.as_posix()}" controls {autoplay}></audio>'
-        wav_idx += 1
-    except FileNotFoundError as err:
-        string = f"🤖 Coqui TTS FileNotFoundError: {err}\n\n"
-    except ValueError as err:
-        string = f"🤖 Coqui TTS ValueError: {err}\n\n"
+        try:
+            if params['voice_clone_reference_path'] is not None:
+                model.tts_with_vc_to_file(text=string, language=params['language'], speaker_wav=params['voice_clone_reference_path'], file_path=str(output_file))
+            else:
+                model.tts_to_file(text=string, file_path=str(output_file), speaker=params['selected_speaker'], language=params['language'])
+            autoplay = 'autoplay' if params['autoplay'] else ''
+            string = f'<audio src="file/{output_file.as_posix()}" controls {autoplay}></audio>'
+        except FileNotFoundError as err:
+            string = f"🤖 Coqui TTS FileNotFoundError: {err}\n\n"
+        except ValueError as err:
+            string = f"🤖 Coqui TTS ValueError: {err}\n\n"
 
-    if params['show_text']:
-        string += f'\n\n{original_string}'
+        if params['show_text'] and params['show_processed_text']:
+            string += f'\n\n{original_string}\n\nProcessed:\n{processed_string}'
+        elif params['show_text']:
+            string += f'\n\n{original_string}'
 
     shared.processing_message = "*Is typing...*"
     return string
 
 
+def setup():
+    global model, speaker, language
+    model, speaker, language = load_model()
+
+
+def bot_prefix_modifier(string):
+    """
+    This function is only applied in chat mode. It modifies
+    the prefix text for the Bot and can be used to bias its
+    behavior.
+    """
+
+    return string
+
+
 def ui():
-    global speakers
-    if not speakers:
-        speakers = refresh_speakers()
-        params['selected_speaker'] = speakers[0]
-
     # Gradio elements
-    with gr.Row():
-        activate = gr.Checkbox(value=params['activate'], label='Activate TTS')
-        autoplay = gr.Checkbox(value=params['autoplay'], label='Play TTS automatically')
+    with gr.Accordion("Coqui AI TTS"):
+        with gr.Row():
+            activate = gr.Checkbox(value=params['activate'], label='Activate TTS')
+            autoplay = gr.Checkbox(value=params['autoplay'], label='Play TTS automatically')
+            gpu = gr.Checkbox(value=params['gpu'], label='Use GPU')
+
         show_text = gr.Checkbox(value=params['show_text'], label='Show message text under audio player')
-        gpu = gr.Checkbox(value=params['gpu'], label='Use GPU')
+        show_processed_text = gr.Checkbox(value=params['show_processed_text'], label='Show processed text under audio player')
+        model_dropdown = gr.Dropdown(value=models[models.index(params['model_name'])] if params['model_name'] in models else None, choices=models, type='index', label='TTS Model')
+        speaker_dropdown = gr.Dropdown(value=params['selected_speaker'], choices=model.speakers if model.speakers is not None else [], label='TTS Speaker')
+        language_dropdown = gr.Dropdown(value=params['language'], choices=model.languages if model.languages is not None else [], label='Language')
+        vc_textbox = gr.Textbox(value=params['voice_clone_reference_path'], label='Voice Clone Speaker Path')
 
-    with gr.Row():
-        model = gr.Dropdown(value=params['model_name'], choices=available_models, label='TTS Model')
-
-    with gr.Row():
-        speaker = gr.Dropdown(value=params['selected_speaker'], choices=speakers, label='TTS Speaker')
-        refresh = gr.Button(value='Refresh')
-
-    with gr.Row():
-        convert = gr.Button('Permanently replace audios with the message texts')
-        convert_cancel = gr.Button('Cancel', visible=False)
-        convert_confirm = gr.Button('Confirm (cannot be undone)', variant="stop", visible=False)
+        with gr.Row():
+            convert = gr.Button('Permanently replace audios with the message texts')
+            convert_cancel = gr.Button('Cancel', visible=False)
+            convert_confirm = gr.Button('Confirm (cannot be undone)', variant="stop", visible=False)
 
     # Convert history with confirmation
     convert_arr = [convert_confirm, convert, convert_cancel]
@@ -182,15 +199,32 @@ def ui():
 
     # Event functions to update the parameters in the backend
     activate.change(lambda x: params.update({'activate': x}), activate, None)
-    model.change(lambda x: params.update({'model_name': x}), model, None)
-    speaker.change(lambda x: params.update({'selected_speaker': x}), speaker, None)
-    refresh.click(refresh_speakers_dd, [], speaker)
+    model_dropdown.change(lambda x: update_model(x), model_dropdown, [speaker_dropdown, language_dropdown])
+    speaker_dropdown.change(lambda x: params.update({"selected_speaker": x}), speaker_dropdown, None)
+    language_dropdown.change(lambda x: params.update({"language": x}), language_dropdown, None)
+    vc_textbox.change(lambda x: params.update({"voice_clone_reference_path": x}), vc_textbox, None)
+    gpu.change(lambda x: params.update({"gpu": x}), gpu, None)
+
     # Toggle message text in history
     show_text.change(lambda x: params.update({"show_text": x}), show_text, None)
     show_text.change(
         toggle_text_in_history, [shared.gradio[k] for k in ['name1', 'name2', 'mode', 'chat_style']], shared.gradio['display']
     )
     show_text.change(chat.save_history, shared.gradio['mode'], [], show_progress=False)
+    show_processed_text.change(lambda x: params.update({"show_processed_text": x}), show_processed_text, None)
     # Event functions to update the parameters in the backend
     autoplay.change(lambda x: params.update({"autoplay": x}), autoplay, None)
-    gpu.change(lambda x: params.update({"gpu": x}), gpu, None)
+
+
+def update_model(x):
+    try:
+        model_name = TTS.list_models()[x]
+    except ValueError:
+        model_name = None
+    params.update({"model_name": model_name})
+    global model, speaker, language, speakers, languages
+    try:
+        model, speaker, language = load_model()
+    except:
+        print(traceback.format_exc())
+    return [gr.update(value=speaker, choices=speakers), gr.update(value=language, choices=languages)]
