@@ -1,8 +1,8 @@
-# coqui_tts
-Text-to-speech extension for oobabooga's text-generation-webui using Coqui.
+# Coqui TTS
+Text-to-speech extension for [Oobabooga's text-generation-webui](https://github.com/oobabooga/text-generation-webui) using [Coqui TTS](https://github.com/coqui-ai/TTS).
 
-## How to install
-Assuming you already have the webui set up:
+## Installation
+Assuming you already have the WebUI set up:
 
 1. Install [eSpeak-NG](https://github.com/espeak-ng/espeak-ng/releases) and ensure it is in your PATH
 2. Activate the conda environment with the `cmd_xxx.bat` or using `conda activate textgen`
@@ -15,3 +15,24 @@ git clone https://github.com/Fire-Input/text-generation-webui-coqui-tts coqui_tt
 ```
 pip install -r extensions/coqui_tts/requirements.txt
 ```
+
+## Notes
+- The `coqui_tts` extension will automatically download the pretrained model `tts_models/en/vctk/vits` by default. It is less than 200MB in size, and will be downloaded to `\home\USER\.local\share\tts` for Linux and `C:\Users\USER\AppData\Local\tts` for Windows.
+- Currently, the `coqui_tts` extension only supports English.
+- You may get an error about numpy if you are using python < 3.10, try `pip install numpy==1.21.6` and restart the WebUI.
+- GPU support is disabled by default. To enable it, change the `gpu` param in `script.py` and set it to `True`. Will add a checkbox in the future.
+- Custom models are not supported yet.
+- Everytime you generate a new audio, Coqui will print out a log message to the console. This is normal and unfortunately cannot be disabled.
+- Audio files are saved to `text-generation-webui/extensions/coqui_tts/outputs/`
+- A lot of the code is copied from the [ElevenLabs extension](https://github.com/oobabooga/text-generation-webui/tree/main/extensions/elevenlabs_tts).
+
+## Testing Environment
+- Windows 11
+- Conda Installation with WSL2
+- WSL2 Ubuntu 22.04
+- Python 3.9.16
+- numpy==1.21.6
+- Conda 23.3.1
+- CUDA 11.7
+- WebUI commit: 68dcbc7ebda3f0d9700dde43d0d29324f5c244b1
+- eSpeak-NG 1.50
