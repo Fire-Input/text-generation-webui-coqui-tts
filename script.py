@@ -8,19 +8,38 @@ from modules.html_generator import chat_html_wrapper
 
 params = {
     'activate': True,
-    'speaker': 'p227',
+    'selected_speaker': 'None',
+    'language': 'en',
     'model_name': 'tts_models/en/vctk/vits',
     'gpu': False,
     'show_text': True,
     'autoplay': True,
 }
 
+speakers = None
 wav_idx = 0
 
 # For tts_models/en/vctk/vits only.
-voices_by_gender = ["p225", "p227", "p237", "p240", "p243", "p244", "p245", "p246", "p247", "p248", "p249", "p250", "p259", "p260", "p261", "p263", "p268", "p270", "p271", "p273", "p274", "p275", "p276", "p277", "p278", "p280", "p283", "p284", "p288", "p293", "p294", "p295", "p297", "p300", "p303", "p304", "p305", "p306", "p308", "p310", "p311", "p314", "p316", "p323", "p329", "p334", "p335", "p336", "p339", "p341", "p343", "p345", "p347", "p360", "p361", "p363", "p364"]
+# voices_by_gender = ["p225", "p227", "p237", "p240", "p243", "p244", "p245", "p246", "p247", "p248", "p249", "p250", "p259", "p260", "p261", "p263", "p268", "p270", "p271", "p273", "p274", "p275", "p276", "p277", "p278", "p280", "p283", "p284", "p288", "p293", "p294", "p295", "p297", "p300", "p303", "p304", "p305", "p306", "p308", "p310", "p311", "p314", "p316", "p323", "p329", "p334", "p335", "p336", "p339", "p341", "p343", "p345", "p347", "p360", "p361", "p363", "p364"]
 
 available_models = TTS.list_models()
+
+
+def refresh_speakers():
+    global params
+    speaker_names = TTS(params['model_name'], progress_bar=False).speakers
+    if speaker_names is not None:
+        return speaker_names
+    else:
+        return None
+
+
+def refresh_speakers_dd():
+    all_voices = refresh_speakers()
+    if all_voices is not None:
+        return gr.Dropdown.update(value=all_voices[0], choices=all_voices)
+    else:
+        return gr.Dropdown.update(value='None', choices=['None'])
 
 
 def remove_tts_from_history(name1, name2, mode, style):
@@ -95,19 +114,19 @@ def output_modifier(string):
     print(f'Outputting audio to {str(output_file)}')
     try:
         tts = TTS(model_name=params['model_name'], progress_bar=False, gpu=params['gpu'])
-        tts.tts_to_file(text=string, file_path=str(output_file), speaker=params['speaker'])
+        if not tts.is_multi_speaker:
+            params['selected_speaker'] = None
+        if tts.is_multi_lingual:
+            tts.tts_to_file(text=string, file_path=str(output_file), speaker=params['selected_speaker'], language=params['language'])
+        else:
+            tts.tts_to_file(text=string, file_path=str(output_file), speaker=params['selected_speaker'])
         autoplay = 'autoplay' if params['autoplay'] else ''
         string = f'<audio src="file/{output_file.as_posix()}" controls {autoplay}></audio>'
         wav_idx += 1
     except FileNotFoundError as err:
-        string = f"🤖 Coqui TTS Error: {err}\n\n"
-
-    # except elevenlabs.api.error.UnauthenticatedRateLimitError:
-    #     string = "🤖 ElevenLabs Unauthenticated Rate Limit Reached - Please create an API key to continue\n\n"
-    # except elevenlabs.api.error.RateLimitError:
-    #     string = "🤖 ElevenLabs API Tier Limit Reached\n\n"
-    # except elevenlabs.api.error.APIError as err:
-    #     string = f"🤖 ElevenLabs Error: {err}\n\n"
+        string = f"🤖 Coqui TTS FileNotFoundError: {err}\n\n"
+    except ValueError as err:
+        string = f"🤖 Coqui TTS ValueError: {err}\n\n"
 
     if params['show_text']:
         string += f'\n\n{original_string}'
@@ -117,6 +136,10 @@ def output_modifier(string):
 
 
 def ui():
+    global speakers
+    if not speakers:
+        speakers = refresh_speakers()
+        params['selected_speaker'] = speakers[0]
 
     # Gradio elements
     with gr.Row():
@@ -126,7 +149,10 @@ def ui():
 
     with gr.Row():
         model = gr.Dropdown(value=params['model_name'], choices=available_models, label='TTS Model')
-        voice = gr.Dropdown(value=params['speaker'], choices=voices_by_gender, label='TTS Speaker')
+
+    with gr.Row():
+        speaker = gr.Dropdown(value=params['selected_speaker'], choices=speakers, label='TTS Speaker')
+        refresh = gr.Button(value='Refresh')
 
     with gr.Row():
         convert = gr.Button('Permanently replace audios with the message texts')
@@ -155,7 +181,8 @@ def ui():
     # Event functions to update the parameters in the backend
     activate.change(lambda x: params.update({'activate': x}), activate, None)
     model.change(lambda x: params.update({'model_name': x}), model, None)
-    voice.change(lambda x: params.update({'speaker': x}), voice, None)
+    speaker.change(lambda x: params.update({'selected_speaker': x}), speaker, None)
+    refresh.click(refresh_speakers_dd, [], speaker)
     # Toggle message text in history
     show_text.change(lambda x: params.update({"show_text": x}), show_text, None)
     show_text.change(
