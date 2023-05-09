@@ -49,9 +49,6 @@ def load_model():
     return tts, temp_speaker, temp_language
 
 
-model, speaker, language = load_model()
-
-
 def remove_tts_from_history(name1, name2, mode, style):
     for i, entry in enumerate(shared.history['internal']):
         shared.history['visible'][i] = [shared.history['visible'][i][0], entry[1]]
@@ -144,11 +141,6 @@ def output_modifier(string):
     return string
 
 
-def setup():
-    global model, speaker, language
-    model, speaker, language = load_model()
-
-
 def bot_prefix_modifier(string):
     """
     This function is only applied in chat mode. It modifies
@@ -229,3 +221,11 @@ def update_model(x):
     except:
         print(traceback.format_exc())
     return [gr.update(value=speaker, choices=speakers), gr.update(value=language, choices=languages)]
+
+
+def setup():
+    global model, speaker, language
+    model, speaker, language = load_model()
+
+
+setup()
