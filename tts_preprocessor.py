@@ -1,4 +1,5 @@
 import re
+import html
 
 from num2words import num2words
 
@@ -54,8 +55,10 @@ def preprocess_all(string):
 
 def replace_invalid_chars(string):
     string = remove_surrounded_chars(string)
+    string = html.unescape(string)
     string = string.replace('"', '')
     string = string.replace('`', '')
+    string = string.replace('&#x27;','\'')
     string = string.replace('\u201D', '').replace('\u201C', '')  # right and left quote
     string = string.replace('\u201F', '')  # italic looking quote
     string = string.replace('\n', ' ')
