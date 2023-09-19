@@ -18,7 +18,7 @@ pip install -r extensions/coqui_tts/requirements.txt
 
 ## Notes
 - The `coqui_tts` extension will automatically download the pretrained model `tts_models/en/vctk/vits` by default. It is less than 200MB in size, and will be downloaded to `\home\USER\.local\share\tts` for Linux and `C:\Users\USER\AppData\Local\tts` for Windows.
-- You may get an error about numpy if you are using python < 3.10, try `pip install numpy==1.21.6` and restart the WebUI.
+- When running oobabooga, the `tts` package (version `TTS==0.17.4`) may throw an error about `numpy` if you are using python < `3.11`, try `pip install numpy==1.24.4` and `pip install numba==0.57.1` to install the most compatible version of `numpy` and `numba` for this version. Ignore any error messages about incompatible package versions as the `tts` package needs to update its `requirements.txt` to later versions of `numpy` and `numba` and restart the WebUI.
 - Custom models are not supported yet.
 - Everytime you generate a new audio, Coqui will print out a log message to the console. This is normal and unfortunately cannot be disabled.
 - Audio files are saved to `text-generation-webui/extensions/coqui_tts/outputs/`
