@@ -60,6 +60,7 @@ def replace_invalid_chars(string):
     string = string.replace('`', '')
     string = string.replace('&#x27;','\'')
     string = string.replace('/',' ')
+    string = string.replace('{','').replace('}','')
     string = string.replace('\u201D', '').replace('\u201C', '')  # right and left quote
     string = string.replace('\u201F', '')  # italic looking quote
     string = string.replace('\n', ' ')
