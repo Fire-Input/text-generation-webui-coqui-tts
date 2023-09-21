@@ -134,7 +134,8 @@ def output_modifier(string, state):
     if string == '':
         string = 'empty reply, try regenerating'
     else:
-        output_file = Path(f'extensions/coqui_tts/outputs/{state["character_menu"]}_{int(time.time())}.wav')
+        character = state.get('character_menu',None)
+        output_file = Path(f'extensions/coqui_tts/outputs/{character}_{int(time.time())}.wav')
         print(f'Outputting audio to {str(output_file)}')
 
         speaker = params['selected_speaker'] if params['selected_speaker'] is not None else os.environ.get('COQUI_TTS_SPEAKER', None)
