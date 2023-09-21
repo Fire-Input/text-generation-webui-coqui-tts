@@ -1,3 +1,4 @@
+import os
 import gradio
 import torch
 from TTS.api import TTS
@@ -136,11 +137,13 @@ def output_modifier(string, state):
         output_file = Path(f'extensions/coqui_tts/outputs/{state["character_menu"]}_{int(time.time())}.wav')
         print(f'Outputting audio to {str(output_file)}')
 
+        speaker = params['selected_speaker'] if params['selected_speaker'] is not None else os.environ.get('COQUI_TTS_SPEAKER', None)
+
         try:
             if params['voice_clone_reference_path'] is not None:
                 model.tts_with_vc_to_file(text=string, language=params['language'], speaker_wav=params['voice_clone_reference_path'], file_path=str(output_file))
             else:
-                model.tts_to_file(text=string, file_path=str(output_file), speaker=params['selected_speaker'], language=params['language'])
+                model.tts_to_file(text=string, file_path=str(output_file), speaker=speaker, language=params['language'])
             autoplay = 'autoplay' if params['autoplay'] else ''
             string = f'<audio src="file/{output_file.as_posix()}" controls {autoplay}></audio>'
         except FileNotFoundError as err:
