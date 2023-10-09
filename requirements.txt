@@ -1,2 +1,2 @@
-TTS
+TTS==0.17.4
 num2words

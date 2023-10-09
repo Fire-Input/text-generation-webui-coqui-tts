@@ -1,3 +1,6 @@
+import os
+import gradio
+import torch
 from TTS.api import TTS
 from pathlib import Path
 import gradio as gr
@@ -33,10 +36,13 @@ def load_model():
     # Init TTS
     global speakers, params
 
+    # Get device
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
     if params['use_custom_model']:
-        tts = TTS(model_path=params['custom_model_path'], config_path=str(Path(str(params['custom_model_path'])).parent / 'config.json'), gpu=params['gpu'])
+        tts = TTS(model_path=params['custom_model_path'], config_path=str(Path(str(params['custom_model_path'])).parent / 'config.json')).to(device)
     else:
-        tts = TTS(params['model_name'], gpu=params['gpu'])
+        tts = TTS(params['model_name']).to(device)
     if tts is not None and tts.synthesizer is not None and tts.synthesizer.tts_config is not None and hasattr(
             tts.synthesizer.tts_config, 'num_chars'):
         tts.synthesizer.tts_config.num_chars = 250
@@ -80,6 +86,10 @@ def state_modifier(state):
 
 
 def input_modifier(string, state):
+    """
+    This function is applied to your text inputs before
+    they are fed into the model.
+    """
     if not params['activate']:
         return string
 
@@ -124,14 +134,19 @@ def output_modifier(string, state):
     if string == '':
         string = 'empty reply, try regenerating'
     else:
-        output_file = Path(f'extensions/coqui_tts/outputs/{state["character_menu"]}_{int(time.time())}.wav')
+        character = state.get('character_menu',None)
+        output_base_dir = os.environ.get('COQUI_OUTPUT_BASE_DIR', None)
+        output_prefix = output_base_dir +'/' if output_base_dir is not None else ''
+        output_file = Path(f'{output_prefix}extensions/coqui_tts/outputs/{character}_{int(time.time())}.wav')
         print(f'Outputting audio to {str(output_file)}')
+
+        speaker = params['selected_speaker'] if params['selected_speaker'] is not None else os.environ.get('COQUI_TTS_SPEAKER', None)
 
         try:
             if params['voice_clone_reference_path'] is not None:
                 model.tts_with_vc_to_file(text=string, language=params['language'], speaker_wav=params['voice_clone_reference_path'], file_path=str(output_file))
             else:
-                model.tts_to_file(text=string, file_path=str(output_file), speaker=params['selected_speaker'], language=params['language'])
+                model.tts_to_file(text=string, file_path=str(output_file), speaker=speaker, language=params['language'])
             autoplay = 'autoplay' if params['autoplay'] else ''
             string = f'<audio src="file/{output_file.as_posix()}" controls {autoplay}></audio>'
         except FileNotFoundError as err:
@@ -173,8 +188,7 @@ def ui():
 
         # Convert history with confirmation
         convert_arr = [convert_confirm, convert, convert_cancel]
-        convert.click(lambda: [gr.update(visible=True), gr.update(visible=False), gr.update(visible=True)], None,
-                      convert_arr)
+        convert.click(lambda: [gr.update(visible=True), gr.update(visible=False), gr.update(visible=True)], None, convert_arr)
         convert_confirm.click(
             lambda: [gr.update(visible=False), gr.update(visible=True), gr.update(visible=False)], None, convert_arr).then(
             remove_tts_from_history, gradio('history'), gradio('history')).then(
