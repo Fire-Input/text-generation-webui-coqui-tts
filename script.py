@@ -1,11 +1,11 @@
-import gradio
 from TTS.api import TTS
 from pathlib import Path
 import gradio as gr
 import time
 import traceback
 
-from modules import chat, shared
+from modules import chat, shared, ui_chat
+from modules.utils import gradio
 from extensions.coqui_tts import tts_preprocessor
 
 params = {
@@ -26,10 +26,7 @@ current_params = params.copy()
 speakers = []
 languages = []
 
-# For tts_models/en/vctk/vits only.
-# voices_by_gender = ["p225", "p227", "p237", "p240", "p243", "p244", "p245", "p246", "p247", "p248", "p249", "p250", "p259", "p260", "p261", "p263", "p268", "p270", "p271", "p273", "p274", "p275", "p276", "p277", "p278", "p280", "p283", "p284", "p288", "p293", "p294", "p295", "p297", "p300", "p303", "p304", "p305", "p306", "p308", "p310", "p311", "p314", "p316", "p323", "p329", "p334", "p335", "p336", "p339", "p341", "p343", "p345", "p347", "p360", "p361", "p363", "p364"]
-
-models = TTS.list_models()
+models = TTS().list_models()
 
 
 def load_model():
@@ -54,20 +51,24 @@ def load_model():
     return tts, temp_speaker, temp_language
 
 
-def remove_tts_from_history():
-    for i, entry in enumerate(shared.history['internal']):
-        shared.history['visible'][i] = [shared.history['visible'][i][0], entry[1]]
+def remove_tts_from_history(history):
+    for i, entry in enumerate(history['internal']):
+        history['visible'][i] = [history['visible'][i][0], entry[1]]
+
+    return history
 
 
-def toggle_text_in_history():
-    for i, entry in enumerate(shared.history['visible']):
+def toggle_text_in_history(history):
+    for i, entry in enumerate(history['visible']):
         visible_reply = entry[1]
         if visible_reply.startswith('<audio'):
             if params['show_text']:
-                reply = shared.history['internal'][i][1]
-                shared.history['visible'][i] = [shared.history['visible'][i][0], f"{visible_reply.split('</audio>')[0]}</audio>\n\n{reply}"]
+                reply = history['internal'][i][1]
+                history['visible'][i] = [history['visible'][i][0], f"{visible_reply.split('</audio>')[0]}</audio>\n\n{reply}"]
             else:
-                shared.history['visible'][i] = [shared.history['visible'][i][0], f"{visible_reply.split('</audio>')[0]}</audio>"]
+                history['visible'][i] = [history['visible'][i][0], f"{visible_reply.split('</audio>')[0]}</audio>"]
+
+    return history
 
 
 def state_modifier(state):
@@ -78,23 +79,11 @@ def state_modifier(state):
     return state
 
 
-def input_modifier(string):
-    """
-    This function is applied to your text inputs before
-    they are fed into the model.
-    """
+def input_modifier(string, state):
     if not params['activate']:
         return string
-    # Remove autoplay from the last reply
-    if shared.is_chat() and len(shared.history['internal']) > 0:
-        shared.history['visible'][-1] = [
-            shared.history['visible'][-1][0],
-            shared.history['visible'][-1][1].replace('controls autoplay>', 'controls>')
-        ]
 
-    if params['activate']:
-        shared.processing_message = "*Is recording a voice message...*"
-
+    shared.processing_message = "*Is recording a voice message...*"
     return string
 
 
@@ -110,7 +99,7 @@ def history_modifier(history):
     return history
 
 
-def output_modifier(string):
+def output_modifier(string, state):
     """
     This function is applied to the model outputs.
     """
@@ -135,7 +124,7 @@ def output_modifier(string):
     if string == '':
         string = 'empty reply, try regenerating'
     else:
-        output_file = Path(f'extensions/coqui_tts/outputs/{shared.character}_{int(time.time())}.wav')
+        output_file = Path(f'extensions/coqui_tts/outputs/{state["character_menu"]}_{int(time.time())}.wav')
         print(f'Outputting audio to {str(output_file)}')
 
         try:
@@ -188,9 +177,9 @@ def ui():
                       convert_arr)
         convert_confirm.click(
             lambda: [gr.update(visible=False), gr.update(visible=True), gr.update(visible=False)], None, convert_arr).then(
-            remove_tts_from_history, None, None).then(
-            chat.save_history, shared.gradio['mode'], None, show_progress=False).then(
-            chat.redraw_html, shared.reload_inputs, shared.gradio['display'])
+            remove_tts_from_history, gradio('history'), gradio('history')).then(
+            chat.save_history, gradio('history', 'unique_id', 'character_menu', 'mode'), None, show_progress=False).then(
+            chat.redraw_html, gradio(ui_chat.reload_arr), gradio('display'))
 
         convert_cancel.click(lambda: [gr.update(visible=False), gr.update(visible=True), gr.update(visible=False)], None,
                              convert_arr)
@@ -198,9 +187,9 @@ def ui():
         # Toggle message text in history
         show_text.change(
             lambda x: params.update({"show_text": x}), show_text, None).then(
-            toggle_text_in_history, None, None).then(
-            chat.save_history, shared.gradio['mode'], None, show_progress=False).then(
-            chat.redraw_html, shared.reload_inputs, shared.gradio['display'])
+            toggle_text_in_history, gradio('history'), gradio('history')).then(
+            chat.save_history, gradio('history', 'unique_id', 'character_menu', 'mode'), None, show_progress=False).then(
+            chat.redraw_html, gradio(ui_chat.reload_arr), gradio('display'))
 
         convert_cancel.click(lambda: [gr.update(visible=False), gr.update(visible=True), gr.update(visible=False)], None,
                              convert_arr)
@@ -224,7 +213,7 @@ def update_model(x):
         params.update({"custom_model_path": x})
     else:
         try:
-            model_name = TTS.list_models()[x]
+            model_name = TTS().list_models()[x]
         except ValueError:
             model_name = None
         params.update({"model_name": model_name})
